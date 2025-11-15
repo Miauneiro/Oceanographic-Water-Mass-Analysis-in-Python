@@ -1,0 +1,29 @@
+# Water Mass Definitions
+# Format: NAME TEMPERATURE(°C) SALINITY(PSU)
+#
+# These are characteristic T-S properties for different water masses
+# in the North Atlantic Ocean
+#
+# ENACW: Eastern North Atlantic Central Water
+# MW: Mediterranean Water
+# NEADWL: North East Atlantic Deep Water Lower
+# SAIW: Sub-Arctic Intermediate Water
+# SPMW: Sub-Polar Mode Water
+# LSW: Labrador Sea Water
+# ISOW: Iceland-Scotland Overflow Water
+# DSOW: Denmark Strait Overflow Water
+# NEADWU: North East Atlantic Deep Water Upper
+
+ENACW16 16.0 36.15
+ENACW12 12.0 35.70
+MW 13.0 36.50
+SAIW1 8.0 35.10
+SAIW2 7.0 35.00
+SPMW8 8.0 35.25
+SPMW7 7.0 35.15
+IrSPMW 9.5 35.30
+LSW 3.5 34.88
+ISOW 2.5 34.95
+DSOW 1.5 34.90
+NEADWU 4.0 35.00
+NEADWL 3.0 34.95
