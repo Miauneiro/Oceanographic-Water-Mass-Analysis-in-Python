@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Oceanographic Water Mass Analysis - Streamlit App
-Interactive web application for analyzing CTD data and water mass mixing
+Oceanographic Water Mass Analysis - Streamlit Application
+Interactive web interface for CTD data analysis and water mass mixing evaluation
 """
 
 import streamlit as st
@@ -25,7 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS for professional appearance
 st.markdown("""
 <style>
     .main-header {
@@ -58,7 +58,7 @@ st.markdown("""
 
 
 def default_water_masses_text():
-    """Return default water mass definitions."""
+    """Return default water mass definitions for North Atlantic."""
     return """# Water Mass Definitions (Name Temperature Salinity)
 # Format: NAME TEMP(°C) SALINITY(PSU)
 ENACW16 16.0 36.15
@@ -69,99 +69,103 @@ NEADWL 3.0 34.95
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🌊 Oceanographic Water Mass Analysis</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Oceanographic Water Mass Analysis</h1>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="info-box">
-    <b>Welcome!</b> This application analyzes oceanographic CTD (Conductivity, Temperature, Depth) profiles
-    and performs water mass mixing analysis using T-S diagrams and the Optimum Multipoint (OMP) method.
+    <b>Interactive CTD Analysis Platform</b><br>
+    Process oceanographic CTD profiles and perform quantitative water mass mixing analysis 
+    using Temperature-Salinity diagrams and the Optimum Multiparameter (OMP) method.
     </div>
     """, unsafe_allow_html=True)
 
-    # Sidebar
+    # Sidebar configuration
     with st.sidebar:
-        st.header("📁 Data Input")
+        st.header("Data Input")
 
         # File upload
         uploaded_files = st.file_uploader(
-            "Upload NetCDF files (.nc)",
+            "Upload NetCDF Files (.nc)",
             type=['nc'],
             accept_multiple_files=True,
-            help="Upload one or more CTD profile NetCDF files"
+            help="Upload one or more CTD profile NetCDF files from World Ocean Database or similar sources"
         )
 
         st.markdown("---")
 
         # Water mass definitions
-        st.header("💧 Water Mass Definitions")
+        st.header("Water Mass Configuration")
 
-        use_default = st.checkbox("Use default water masses", value=True)
+        use_default = st.checkbox("Use default North Atlantic water masses", value=True)
 
         if use_default:
             water_mass_text = default_water_masses_text()
             st.info("Using default: ENACW16, MW, NEADWL")
         else:
             water_mass_text = st.text_area(
-                "Define water masses (Name Temp Sal):",
+                "Define custom water masses (Name Temp Sal):",
                 value=default_water_masses_text(),
                 height=200,
-                help="Format: NAME TEMPERATURE SALINITY (one per line)"
+                help="Format: NAME TEMPERATURE(°C) SALINITY(PSU) - one per line, minimum 3 required for mixing analysis"
             )
 
         st.markdown("---")
 
         # Analysis options
-        st.header("⚙️ Options")
-        show_profiles = st.checkbox("Show temperature profiles", value=True)
-        show_map = st.checkbox("Show map", value=True)
-        show_sections = st.checkbox("Show vertical sections", value=True)
-        show_ts_diagram = st.checkbox("Show T-S diagram", value=True)
-        show_ts_rgb = st.checkbox("Show RGB mixing diagram", value=True)
-        show_ternary = st.checkbox("Show ternary diagram", value=True)
+        st.header("Visualization Options")
+        show_profiles = st.checkbox("Temperature profiles", value=True)
+        show_map = st.checkbox("Geographic map", value=True)
+        show_sections = st.checkbox("Vertical sections", value=True)
+        show_ts_diagram = st.checkbox("T-S diagram", value=True)
+        show_ts_rgb = st.checkbox("RGB mixing visualization", value=True)
+        show_ternary = st.checkbox("Ternary composition diagram", value=True)
 
-    # Main content
+    # Main content area
     if not uploaded_files:
-        st.warning("⬅️ Please upload NetCDF files using the sidebar to begin analysis")
+        st.warning("Please upload NetCDF files using the sidebar to begin analysis")
 
-        # Show example/instructions
-        st.markdown('<h2 class="section-header">📖 How to Use</h2>', unsafe_allow_html=True)
+        # Documentation and instructions
+        st.markdown('<h2 class="section-header">Application Overview</h2>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("""
-            ### 1️⃣ Upload Data
+            ### Data Upload
             - Upload one or more CTD NetCDF files
-            - Files should contain: Temperature, Salinity, Pressure, Latitude, Longitude
+            - Required variables: Temperature, Salinity, Pressure, Latitude, Longitude
+            - Compatible with World Ocean Database format
 
-            ### 2️⃣ Configure Water Masses
-            - Use default water masses or define your own
-            - Format: NAME TEMPERATURE SALINITY
-            - At least 3 water masses needed for mixing analysis
+            ### Water Mass Configuration
+            - Use predefined North Atlantic water masses
+            - Or define custom end-members for other ocean basins
+            - Minimum 3 water masses required for mixing triangle analysis
             """)
 
         with col2:
             st.markdown("""
-            ### 3️⃣ View Results
-            - Interactive maps and vertical sections
-            - T-S diagrams with isopycnals
-            - Water mass mixing analysis (OMP method)
-            - RGB visualization of mixing ratios
+            ### Analysis Outputs
+            - Interactive geographic maps with profile locations
+            - Vertical cross-sections of T, S, and density
+            - T-S diagrams with isopycnal contours
+            - Quantitative water mass mixing analysis via OMP method
+            - RGB color visualization of proportional mixing
 
-            ### 4️⃣ Interpret Results
-            - Red = ENACW16, Green = MW, Blue = NEADWL
-            - Ternary diagram shows average composition
+            ### Scientific Method
+            - TEOS-10 equation of state for density calculations
+            - Linear system solving for mixing ratio decomposition
+            - Ternary diagrams for compositional statistics
             """)
 
-        st.markdown('<h2 class="section-header">🎨 Features</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">Key Features</h2>', unsafe_allow_html=True)
 
         features = [
-            "📊 **Data Processing:** Reads and interpolates multiple NetCDF files",
-            "🔬 **Scientific Calculations:** Uses GSW (TEOS-10) for accurate density calculations",
-            "🌡️ **Water Mass Mixing:** OMP analysis for mixing percentages",
-            "🎨 **Advanced Visualization:** Professional plots with RGB color mixing",
-            "🗺️ **Geographic Mapping:** Profile locations with Cartopy",
-            "📈 **Vertical Sections:** Temperature, Salinity, and Density distributions"
+            "**Scientific Rigor**: TEOS-10 Gibbs SeaWater library for accurate thermodynamic calculations",
+            "**Batch Processing**: Handles multiple CTD casts with automatic interpolation to common depth grid",
+            "**Geospatial Visualization**: Publication-quality maps using Cartopy",
+            "**Quantitative Analysis**: OMP method for water mass mixing decomposition",
+            "**Advanced Visualization**: RGB color mixing shows proportional contributions intuitively",
+            "**Flexible Configuration**: Customizable water mass definitions for different ocean regions"
         ]
 
         for feature in features:
@@ -169,9 +173,9 @@ def main():
 
         return
 
-    # Process uploaded files
+    # Data processing workflow
     try:
-        # Save uploaded files temporarily
+        # Save uploaded files to temporary directory
         temp_files = []
         temp_dir = tempfile.mkdtemp()
 
@@ -181,78 +185,87 @@ def main():
                 f.write(uploaded_file.getbuffer())
             temp_files.append(temp_path)
 
-        # Sort files
+        # Sort files alphabetically
         ncf = sorted(temp_files)
 
-        st.success(f"✅ Loaded {len(ncf)} NetCDF file(s)")
+        st.success(f"Successfully loaded {len(ncf)} NetCDF file(s)")
 
-        # Read profiles
-        with st.spinner("Reading CTD profiles..."):
+        # Add info message for single profile
+        if len(ncf) == 1:
+            st.info("Note: You've uploaded a single CTD profile. For best results with vertical sections and track visualization, upload multiple profiles from a transect.")
+
+        # Read and interpolate CTD profiles
+        with st.spinner("Reading CTD profiles and interpolating to common depth grid..."):
             la, lo, Ti, Te, Se = ler_perfis(ncf, Znew)
 
-        # Calculate density
-        with st.spinner("Calculating density..."):
+        # Calculate in-situ density using TEOS-10
+        with st.spinner("Calculating in-situ density using GSW (TEOS-10)..."):
             Rho = calcular_densidade(Te, Se, Znew, lo, la)
 
-        # Calculate accumulated distance
-        d = gsw.geostrophy.distance(lo, la) * 1e-3
-        sd = np.zeros(len(la))
-        sd[1:] = np.cumsum(d)
+        # Calculate accumulated distance along track
+        if len(lo) > 1:
+            d = gsw.geostrophy.distance(lo, la) * 1e-3  # Convert to km
+            sd = np.zeros(len(la))
+            sd[1:] = np.cumsum(d)
+        else:
+            # Single profile case
+            sd = np.array([0.0])
         X, Y = np.meshgrid(sd, Znew, indexing='ij')
 
-        # Parse water masses
+        # Parse water mass definitions
         grupo = parse_massas_agua_text(water_mass_text)
 
         if not grupo:
-            st.warning("⚠️ No valid water masses defined")
+            st.warning("No valid water masses defined. Please check configuration.")
 
         # Display data summary
-        st.markdown('<h2 class="section-header">📊 Data Summary</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">Data Summary</h2>', unsafe_allow_html=True)
 
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("Number of Profiles", len(ncf))
+            st.metric("CTD Profiles", len(ncf))
 
         with col2:
             st.metric("Depth Levels", len(Znew))
 
         with col3:
-            st.metric("Max Depth", f"{Znew[-1]:.0f} m")
+            st.metric("Maximum Depth", f"{Znew[-1]:.0f} m")
 
         with col4:
             st.metric("Water Masses", len(grupo))
 
-        # Display water masses
+        # Display configured water masses
         if grupo:
-            with st.expander("🔍 View Water Mass Properties"):
+            with st.expander("View Water Mass Properties"):
                 for nome, dados in grupo.items():
                     estilo = MA_ESTILO.get(nome, {'cor': 'black'})
-                    st.markdown(f"**{nome}** - T: {dados['temp'][0]:.2f}°C, S: {dados['sal'][0]:.3f} PSU")
+                    st.markdown(f"**{nome}** - Temperature: {dados['temp'][0]:.2f}°C, Salinity: {dados['sal'][0]:.3f} PSU")
 
-        # Visualizations
-        st.markdown('<h2 class="section-header">📈 Visualizations</h2>', unsafe_allow_html=True)
+        # Generate visualizations
+        st.markdown('<h2 class="section-header">Analysis Results</h2>', unsafe_allow_html=True)
 
         # Temperature profiles
         if show_profiles:
-            st.markdown("### 🌡️ Temperature Profiles")
+            st.markdown("### Temperature Profiles by Depth")
             with st.spinner("Generating temperature profiles..."):
                 fig = plotar_perfis(Te, Znew)
                 st.pyplot(fig)
 
-        # Map
+        # Geographic map
         if show_map:
-            st.markdown("### 🗺️ CTD Profile Locations")
-            with st.spinner("Generating map..."):
+            st.markdown("### CTD Profile Locations")
+            with st.spinner("Generating geographic map..."):
                 try:
                     fig = plotar_mapa(lo, la, Ti)
                     st.pyplot(fig)
                 except Exception as e:
                     st.error(f"Error generating map: {str(e)}")
+                    st.info("Cartopy may require additional system dependencies for map rendering")
 
         # Vertical sections
         if show_sections:
-            st.markdown("### 📊 Vertical Sections")
+            st.markdown("### Vertical Cross-Sections")
 
             tab1, tab2, tab3 = st.tabs(["Temperature", "Salinity", "Density"])
 
@@ -271,11 +284,11 @@ def main():
                     fig = plotar_secao(X, Y, Rho, "Vertical Section - Density", "Density (kg/m³)")
                     st.pyplot(fig)
 
-        # T-S Diagrams
+        # T-S Diagram Analysis
         if show_ts_diagram or show_ts_rgb or show_ternary:
-            st.markdown("### 🎨 T-S Diagram Analysis")
+            st.markdown("### Temperature-Salinity Diagram Analysis")
 
-            # Read first profile for T-S diagram
+            # Read first profile for detailed T-S analysis
             nc = Dataset(ncf[0], 'r')
             T_perfil = nc.variables['Temperature'][:]
             S_perfil = nc.variables['Salinity'][:]
@@ -283,21 +296,21 @@ def main():
             nc.close()
 
             if show_ts_diagram:
-                st.markdown("#### Standard T-S Diagram")
-                with st.spinner("Generating T-S diagram..."):
+                st.markdown("#### Standard T-S Diagram with Water Masses")
+                with st.spinner("Generating T-S diagram with isopycnals..."):
                     fig, percentagens = plotar_TS(T_perfil, S_perfil, P_perfil, grupo)
                     st.pyplot(fig)
 
-                    # Show ternary if percentages calculated and option enabled
+                    # Generate ternary diagram if mixing percentages calculated
                     if show_ternary and percentagens is not None:
-                        st.markdown("#### Ternary Diagram - Average Composition")
+                        st.markdown("#### Ternary Composition Diagram")
                         with st.spinner("Generating ternary diagram..."):
                             fig = plotar_ternary(percentagens)
                             st.pyplot(fig)
 
             if show_ts_rgb:
-                st.markdown("#### RGB Mixing Visualization")
-                st.info("Colors represent mixing ratios: Red=ENACW16, Green=MW, Blue=NEADWL")
+                st.markdown("#### RGB Water Mass Mixing Visualization")
+                st.info("Color channels represent proportional mixing: Red = ENACW16, Green = MW, Blue = NEADWL")
                 with st.spinner("Generating RGB mixing diagram..."):
                     fig = plotar_TS_mistura_RGB(T_perfil, S_perfil, P_perfil, grupo)
                     st.pyplot(fig)
@@ -306,11 +319,12 @@ def main():
         st.markdown("---")
         st.markdown("""
         <div style="text-align: center; color: #7f8c8d; padding: 1rem;">
-        <b>Oceanographic Water Mass Analysis</b> | Powered by Python, GSW, and Streamlit
+        <b>Oceanographic Water Mass Analysis</b><br>
+        Scientific computing with Python | GSW (TEOS-10) | Streamlit
         </div>
         """, unsafe_allow_html=True)
 
-        # Cleanup temp files
+        # Cleanup temporary files
         for temp_file in temp_files:
             try:
                 os.remove(temp_file)
@@ -318,7 +332,7 @@ def main():
                 pass
 
     except Exception as e:
-        st.error(f"❌ Error processing data: {str(e)}")
+        st.error(f"Error processing data: {str(e)}")
         st.exception(e)
 
 
