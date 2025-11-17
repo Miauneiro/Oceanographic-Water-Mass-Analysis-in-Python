@@ -608,3 +608,157 @@ def plot_ts_diagram(T, S, P, water_masses, triangulo=True):
     plt.tight_layout()
 
     return fig, percentages_medias
+
+
+def plot_mixing_histograms(T, S, P, water_masses):
+    """
+    Plot histograms showing distribution of water mass contribution percentages.
+    Works specifically with 3 water masses: ENACW16, MW, NEADWL.
+    
+    Returns:
+        fig: matplotlib figure
+        stats: dictionary with statistics for each water mass
+    """
+    # Filter valid data
+    mask = (~np.isnan(T)) & (~np.isnan(S)) & (T > 0) & (S > 0)
+    T_valid, S_valid = T[mask], S[mask]
+    
+    # Check if we have the required 3 water masses
+    if not all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
+        return None, None
+    
+    T1, S1 = water_masses["ENACW16"]['temp'][0], water_masses["ENACW16"]['sal'][0]
+    T2, S2 = water_masses["MW"]['temp'][0], water_masses["MW"]['sal'][0]
+    T3, S3 = water_masses["NEADWL"]['temp'][0], water_masses["NEADWL"]['sal'][0]
+    
+    # Calculate percentages for all points
+    perc_enacw16 = []
+    perc_mw = []
+    perc_neadwl = []
+    
+    for i in range(len(T_valid)):
+        # Using OMP method to calculate mixing fractions
+        # System: T = f1*T1 + f2*T2 + f3*T3, S = f1*S1 + f2*S2 + f3*S3, f1+f2+f3=1
+        A = np.array([[T1, T2, T3], 
+                      [S1, S2, S3], 
+                      [1, 1, 1]])
+        b = np.array([T_valid[i], S_valid[i], 1])
+        
+        try:
+            fractions = np.linalg.solve(A, b)
+            if np.all(fractions >= -0.05) and np.all(fractions <= 1.05):  # Allow small numerical errors
+                perc_enacw16.append(fractions[0] * 100)
+                perc_mw.append(fractions[1] * 100)
+                perc_neadwl.append(fractions[2] * 100)
+        except:
+            continue
+    
+    if len(perc_enacw16) == 0:
+        return None, None
+    
+    # Create figure with 3 subplots
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12))
+    
+    bins = np.arange(0, 105, 5)  # 5% bins
+    
+    # Histogram ENACW16
+    axes[0].hist(perc_enacw16, bins=bins, color=WATER_MASS_STYLES['ENACW16']['rgb'], 
+                 alpha=0.7, edgecolor='black', linewidth=1.2)
+    axes[0].axvline(np.mean(perc_enacw16), color='red', linestyle='--', 
+                   linewidth=2, label=f'Mean: {np.mean(perc_enacw16):.1f}%')
+    axes[0].axvline(np.median(perc_enacw16), color='blue', linestyle='--', 
+                   linewidth=2, label=f'Median: {np.median(perc_enacw16):.1f}%')
+    axes[0].set_xlabel('Contribution Percentage (%)', fontsize=11)
+    axes[0].set_ylabel('Number of Measurements', fontsize=11)
+    axes[0].set_title('Distribution - ENACW16 (Eastern North Atlantic Central Water)', 
+                     fontsize=12, fontweight='bold')
+    axes[0].legend(loc='upper right', fontsize=10)
+    axes[0].grid(True, alpha=0.3)
+    axes[0].set_xlim(0, 100)
+    
+    # Statistics text box
+    textstr = f'n = {len(perc_enacw16)}\n'
+    textstr += f'Min: {np.min(perc_enacw16):.1f}%\n'
+    textstr += f'Max: {np.max(perc_enacw16):.1f}%\n'
+    textstr += f'Std Dev: {np.std(perc_enacw16):.1f}%'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+    axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
+                verticalalignment='top', bbox=props, family='monospace')
+    
+    # Histogram MW
+    axes[1].hist(perc_mw, bins=bins, color=WATER_MASS_STYLES['MW']['rgb'], 
+                 alpha=0.7, edgecolor='black', linewidth=1.2)
+    axes[1].axvline(np.mean(perc_mw), color='red', linestyle='--', 
+                   linewidth=2, label=f'Mean: {np.mean(perc_mw):.1f}%')
+    axes[1].axvline(np.median(perc_mw), color='blue', linestyle='--', 
+                   linewidth=2, label=f'Median: {np.median(perc_mw):.1f}%')
+    axes[1].set_xlabel('Contribution Percentage (%)', fontsize=11)
+    axes[1].set_ylabel('Number of Measurements', fontsize=11)
+    axes[1].set_title('Distribution - MW (Mediterranean Water)', 
+                     fontsize=12, fontweight='bold')
+    axes[1].legend(loc='upper right', fontsize=10)
+    axes[1].grid(True, alpha=0.3)
+    axes[1].set_xlim(0, 100)
+    
+    textstr = f'n = {len(perc_mw)}\n'
+    textstr += f'Min: {np.min(perc_mw):.1f}%\n'
+    textstr += f'Max: {np.max(perc_mw):.1f}%\n'
+    textstr += f'Std Dev: {np.std(perc_mw):.1f}%'
+    axes[1].text(0.02, 0.98, textstr, transform=axes[1].transAxes, fontsize=9,
+                verticalalignment='top', bbox=props, family='monospace')
+    
+    # Histogram NEADWL
+    axes[2].hist(perc_neadwl, bins=bins, color=WATER_MASS_STYLES['NEADWL']['rgb'], 
+                 alpha=0.7, edgecolor='black', linewidth=1.2)
+    axes[2].axvline(np.mean(perc_neadwl), color='red', linestyle='--', 
+                   linewidth=2, label=f'Mean: {np.mean(perc_neadwl):.1f}%')
+    axes[2].axvline(np.median(perc_neadwl), color='blue', linestyle='--', 
+                   linewidth=2, label=f'Median: {np.median(perc_neadwl):.1f}%')
+    axes[2].set_xlabel('Contribution Percentage (%)', fontsize=11)
+    axes[2].set_ylabel('Number of Measurements', fontsize=11)
+    axes[2].set_title('Distribution - NEADWL (North East Atlantic Deep Water - Lower)', 
+                     fontsize=12, fontweight='bold')
+    axes[2].legend(loc='upper right', fontsize=10)
+    axes[2].grid(True, alpha=0.3)
+    axes[2].set_xlim(0, 100)
+    
+    textstr = f'n = {len(perc_neadwl)}\n'
+    textstr += f'Min: {np.min(perc_neadwl):.1f}%\n'
+    textstr += f'Max: {np.max(perc_neadwl):.1f}%\n'
+    textstr += f'Std Dev: {np.std(perc_neadwl):.1f}%'
+    axes[2].text(0.02, 0.98, textstr, transform=axes[2].transAxes, fontsize=9,
+                verticalalignment='top', bbox=props, family='monospace')
+    
+    plt.suptitle('Water Mass Contribution Distribution', 
+                fontsize=14, fontweight='bold', y=0.995)
+    plt.tight_layout()
+    
+    # Return statistics dictionary
+    stats = {
+        'ENACW16': {
+            'mean': np.mean(perc_enacw16),
+            'median': np.median(perc_enacw16),
+            'std': np.std(perc_enacw16),
+            'min': np.min(perc_enacw16),
+            'max': np.max(perc_enacw16),
+            'n': len(perc_enacw16)
+        },
+        'MW': {
+            'mean': np.mean(perc_mw),
+            'median': np.median(perc_mw),
+            'std': np.std(perc_mw),
+            'min': np.min(perc_mw),
+            'max': np.max(perc_mw),
+            'n': len(perc_mw)
+        },
+        'NEADWL': {
+            'mean': np.mean(perc_neadwl),
+            'median': np.median(perc_neadwl),
+            'std': np.std(perc_neadwl),
+            'min': np.min(perc_neadwl),
+            'max': np.max(perc_neadwl),
+            'n': len(perc_neadwl)
+        }
+    }
+    
+    return fig, stats

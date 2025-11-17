@@ -14,7 +14,7 @@ import os
 from oceanography import (
     Znew, WATER_MASS_STYLES, read_profiles, calculate_density, parse_water_masses_text,
     plot_profiles, plot_map, plot_section, plot_ternary,
-    plot_ts_diagram, plot_ts_rgb_mixing
+    plot_ts_diagram, plot_ts_rgb_mixing, plot_mixing_histograms
 )
 
 # Page configuration
@@ -363,6 +363,41 @@ def main():
 
         # Generate visualizations
         st.markdown('<h2 class="section-header">Analysis Results</h2>', unsafe_allow_html=True)
+        
+        # Quick Insights Panel (Enhancement #3)
+        st.markdown("### Quick Insights")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            # Temperature range
+            temp_range = f"{np.nanmin(Te):.1f}°C to {np.nanmax(Te):.1f}°C"
+            st.metric("Temperature Range", temp_range)
+        
+        with col2:
+            # Salinity range
+            sal_range = f"{np.nanmin(Se):.2f} to {np.nanmax(Se):.2f}"
+            st.metric("Salinity Range", sal_range)
+        
+        with col3:
+            # Depth coverage
+            depth_cov = f"0 - {Znew[-1]:.0f}m"
+            st.metric("Depth Coverage", depth_cov)
+        
+        with col4:
+            # Number of profiles
+            st.metric("CTD Profiles", len(ncf))
+        
+        # Add water mass dominance insight if we have the data
+        if len(water_masses) == 3 and all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
+            # Calculate quick water mass statistics
+            T_flat = Te.flatten()
+            S_flat = Se.flatten()
+            P_flat = np.repeat(Znew, Te.shape[0]).reshape(Te.shape).flatten()
+            
+            mask = (~np.isnan(T_flat)) & (~np.isnan(S_flat))
+            if np.sum(mask) > 0:
+                # This is a quick calculation - full one is in histograms
+                st.info(f"**Water Mass Signature:** Analysis covers {np.sum(mask)} measurements across {len(ncf)} profiles. Detailed distribution histograms available below.")
 
         # Temperature profiles
         if show_profiles:
@@ -452,6 +487,45 @@ def main():
                 use_case = st.session_state.get('use_case', 'Scientific Research')
                 with st.expander("How to Interpret This (Business Context)", expanded=False):
                     st.markdown(BUSINESS_CONTEXT[use_case]['rgb_insight'])
+            
+            # Water Mass Distribution Histograms
+            if show_ts_rgb:  # Only show if RGB is enabled (requires 3 water masses)
+                st.markdown("#### Water Mass Contribution Distribution")
+                with st.spinner("Generating distribution histograms..."):
+                    fig_hist, stats = plot_mixing_histograms(T_perfil, S_perfil, P_perfil, water_masses)
+                    
+                    if fig_hist is not None and stats is not None:
+                        st.pyplot(fig_hist)
+                        
+                        # Dynamic business insights using actual data
+                        with st.expander("Distribution Insights (Data-Driven)", expanded=True):
+                            # Determine dominant water mass
+                            dominant = max(stats.items(), key=lambda x: x[1]['mean'])
+                            dominant_name = dominant[0]
+                            dominant_pct = dominant[1]['mean']
+                            
+                            st.markdown(f"**Key Findings from Your Data:**")
+                            st.markdown(f"- **Dominant Water Mass:** {dominant_name} (average {dominant_pct:.1f}% contribution)")
+                            st.markdown(f"- **ENACW16:** {stats['ENACW16']['mean']:.1f}% ± {stats['ENACW16']['std']:.1f}% (range: {stats['ENACW16']['min']:.1f}-{stats['ENACW16']['max']:.1f}%)")
+                            st.markdown(f"- **MW:** {stats['MW']['mean']:.1f}% ± {stats['MW']['std']:.1f}% (range: {stats['MW']['min']:.1f}-{stats['MW']['max']:.1f}%)")
+                            st.markdown(f"- **NEADWL:** {stats['NEADWL']['mean']:.1f}% ± {stats['NEADWL']['std']:.1f}% (range: {stats['NEADWL']['min']:.1f}-{stats['NEADWL']['max']:.1f}%)")
+                            st.markdown(f"- **Measurements analyzed:** {stats['ENACW16']['n']} valid points")
+                            
+                            # Use case specific interpretation
+                            if use_case == "Offshore Energy & Infrastructure":
+                                if stats['MW']['mean'] > 30:
+                                    st.warning(f"⚠️ High MW presence ({stats['MW']['mean']:.1f}%) indicates strong Mediterranean influence. Cable routes at 1000-1500m depth will experience elevated corrosion risk and eastward currents of 5-10 cm/s. Consider routing above 800m or below 1600m.")
+                                else:
+                                    st.success(f"✓ MW contribution is moderate ({stats['MW']['mean']:.1f}%). Standard corrosion protection is sufficient for most depth ranges.")
+                            
+                            elif use_case == "Fisheries & Aquaculture":
+                                if stats['ENACW16']['mean'] > 40:
+                                    st.info(f"🐟 Strong ENACW presence ({stats['ENACW16']['mean']:.1f}%) in upper waters indicates productive habitat for juvenile fish and small pelagics. ENACW/MW boundary zones (where both masses mix) are optimal fishing grounds.")
+                                if stats['MW']['mean'] > 20:
+                                    st.info(f"🎣 MW contribution of {stats['MW']['mean']:.1f}% suggests adult tuna and swordfish habitat at intermediate depths (500-1200m). Focus fishing effort along water mass boundaries.")
+                            
+                            elif use_case == "Climate Services":
+                                st.info(f"📊 Current MW contribution: {stats['MW']['mean']:.1f}%. Historical baseline for this region is ~35%. Values >40% indicate enhanced Mediterranean outflow; <30% suggests reduced exchange, potentially signaling circulation changes.")
 
         # Footer
         st.markdown("---")
