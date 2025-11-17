@@ -1,6 +1,6 @@
 # Oceanographic Water Mass Analysis
 
-**[🔴 Live Demo](https://your-oceanography-app.streamlit.app)** *(Update with your Streamlit Cloud URL)*
+**[🔴 Live Demo](https://oceanographicwma.streamlit.app)**
 
 This project performs quantitative water mass mixing analysis on oceanographic CTD (Conductivity, Temperature, Depth) data. Using the Optimum Multiparameter (OMP) method and TEOS-10 thermodynamic calculations, it decomposes observed water properties into contributions from end-member water masses.
 
