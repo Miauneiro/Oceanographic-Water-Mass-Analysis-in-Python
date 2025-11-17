@@ -231,6 +231,6 @@ Before deploying updates:
 ## Support
 
 For issues or questions:
-- GitHub Issues: [Your repository URL]
-- Email: [Your contact]
+- GitHub Issues: https://github.com/Miauneiro/Oceanographic-Water-Mass-Analysis-in-Python
+- Email: joaofteixeiramanero@gmail.com
 - Documentation: This README and inline code comments
