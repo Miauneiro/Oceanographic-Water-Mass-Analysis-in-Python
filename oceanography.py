@@ -25,7 +25,7 @@ from cartopy.mpl import ticker as cticker
 Znew = np.linspace(10, 4000, 400)
 
 # Water mass styles (with RGB colors for mixing visualization)
-MA_ESTILO = {
+WATER_MASS_STYLES = {
     'ENACW16': {'cor': 'blue',       'marker': 'o', 'size': 120, 'rgb': (1.0, 0.0, 0.0)},
     'ENACW12': {'cor': 'darkorange', 'marker': 'o', 'size': 120, 'rgb': (1.0, 0.5, 0.0)},
     'MW':      {'cor': 'red',        'marker': 's', 'size': 120, 'rgb': (0.0, 1.0, 0.0)},
@@ -46,7 +46,7 @@ MA_ESTILO = {
 # DATA READING AND CALCULATION FUNCTIONS
 # ============================================================================
 
-def ler_perfis(ncf, Znew):
+def read_profiles(ncf, Znew):
     """
     Read temperature and salinity profiles from NetCDF files.
 
@@ -93,7 +93,7 @@ def ler_perfis(ncf, Znew):
     return la, lo, Ti, Te, Se
 
 
-def calcular_densidade(Te, Se, Znew, lo, la):
+def calculate_density(Te, Se, Znew, lo, la):
     """
     Calculate in-situ density using GSW.
 
@@ -123,24 +123,24 @@ def calcular_densidade(Te, Se, Znew, lo, la):
     return Rho
 
 
-def ler_massas_agua(ficheiro="Pontos_MA.txt"):
+def read_water_masses(filepath="Pontos_MA.txt"):
     """
     Read characteristic water mass points from a text file.
 
     Parameters
     ----------
-    ficheiro : str
+    filepath : str
         Path to water mass file
 
     Returns
     -------
-    grupo : defaultdict
+    water_masses : defaultdict
         Dictionary of water masses with their T/S properties
     """
-    grupo = defaultdict(lambda: {'sal': [], 'temp': []})
+    water_masses = defaultdict(lambda: {'sal': [], 'temp': []})
 
     try:
-        with open(ficheiro, "r") as f:
+        with open(filepath, "r") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -149,20 +149,20 @@ def ler_massas_agua(ficheiro="Pontos_MA.txt"):
                 parts = line.split()
                 if len(parts) >= 3:
                     try:
-                        nome = parts[0]
+                        name = parts[0]
                         temp = float(parts[1])
                         sal = float(parts[2])
-                        grupo[nome]['sal'].append(sal)
-                        grupo[nome]['temp'].append(temp)
+                        water_masses[name]['sal'].append(sal)
+                        water_masses[name]['temp'].append(temp)
                     except ValueError:
                         continue
     except FileNotFoundError:
-        print(f"⚠️ File {ficheiro} not found. Water masses will not be plotted.")
+        print(f"⚠️ File {filepath} not found. Water masses will not be plotted.")
 
-    return grupo
+    return water_masses
 
 
-def parse_massas_agua_text(text_content):
+def parse_water_masses_text(text_content):
     """
     Parse water mass data from text content.
 
@@ -173,10 +173,10 @@ def parse_massas_agua_text(text_content):
 
     Returns
     -------
-    grupo : defaultdict
+    water_masses : defaultdict
         Dictionary of water masses with their T/S properties
     """
-    grupo = defaultdict(lambda: {'sal': [], 'temp': []})
+    water_masses = defaultdict(lambda: {'sal': [], 'temp': []})
 
     for line in text_content.split('\n'):
         line = line.strip()
@@ -186,18 +186,18 @@ def parse_massas_agua_text(text_content):
         parts = line.split()
         if len(parts) >= 3:
             try:
-                nome = parts[0]
+                name = parts[0]
                 temp = float(parts[1])
                 sal = float(parts[2])
-                grupo[nome]['sal'].append(sal)
-                grupo[nome]['temp'].append(temp)
+                water_masses[name]['sal'].append(sal)
+                water_masses[name]['temp'].append(temp)
             except ValueError:
                 continue
 
-    return grupo
+    return water_masses
 
 
-def calcular_percentagens_mistura(T_obs, S_obs, T1, S1, T2, S2, T3, S3):
+def calculate_mixing_percentages(T_obs, S_obs, T1, S1, T2, S2, T3, S3):
     """
     Calculate mixing percentages of three water masses using OMP analysis.
 
@@ -245,7 +245,7 @@ def calcular_percentagens_mistura(T_obs, S_obs, T1, S1, T2, S2, T3, S3):
 # VISUALIZATION FUNCTIONS
 # ============================================================================
 
-def plotar_perfis(Te, Znew):
+def plot_profiles(Te, Znew):
     """Plot vertical temperature profiles."""
     fig, ax = plt.subplots(figsize=(8, 6))
     for k in range(Te.shape[0]):
@@ -261,8 +261,16 @@ def plotar_perfis(Te, Znew):
     return fig
 
 
-def plotar_mapa(lo, la, Ti):
+def plot_map(lo, la, Ti):
     """Plot map with CTD profile locations."""
+    # Check for empty or invalid data
+    if len(lo) == 0 or len(la) == 0:
+        fig, ax = plt.subplots(figsize=(10, 7))
+        ax.text(0.5, 0.5, 'No location data available', 
+                ha='center', va='center', fontsize=12, transform=ax.transAxes)
+        ax.set_title("CTD Profile Locations", fontsize=12, fontweight='bold')
+        return fig
+    
     fig = plt.figure(figsize=(10, 7))
     ax = plt.axes(projection=ccrs.PlateCarree())
 
@@ -293,8 +301,35 @@ def plotar_mapa(lo, la, Ti):
     return fig
 
 
-def plotar_secao(X, Y, campo, titulo, label, cmap='viridis'):
+def plot_section(X, Y, campo, titulo, label, cmap='viridis'):
     """Plot vertical section of any field."""
+    # Check if we have enough data for a 2D contour
+    if campo.shape[0] < 2 or campo.shape[1] < 2:
+        # Not enough profiles for a section - create a simple plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, 'Vertical sections require at least 2 CTD profiles.\nPlease upload multiple profiles from a transect.', 
+                ha='center', va='center', fontsize=12, transform=ax.transAxes,
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        ax.set_xlabel('Accumulated distance (km)', fontsize=11)
+        ax.set_ylabel('Depth (m)', fontsize=11)
+        ax.set_title(titulo, fontsize=12, fontweight='bold')
+        plt.tight_layout()
+        return fig
+    
+    # Handle empty or all-NaN data
+    valid_data = campo[~np.isnan(campo)]
+    
+    if len(valid_data) == 0:
+        # Create empty plot with message
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, 'No valid data available for this section', 
+                ha='center', va='center', fontsize=12, transform=ax.transAxes)
+        ax.set_xlabel('Accumulated distance (km)', fontsize=11)
+        ax.set_ylabel('Depth (m)', fontsize=11)
+        ax.set_title(titulo, fontsize=12, fontweight='bold')
+        plt.tight_layout()
+        return fig
+    
     clevs = np.linspace(np.nanmin(campo), np.nanmax(campo), 20)
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -308,7 +343,7 @@ def plotar_secao(X, Y, campo, titulo, label, cmap='viridis'):
     return fig
 
 
-def plotar_ternary(percentagens, nomes=["ENACW16", "MW", "NEADWL"]):
+def plot_ternary(percentages, names=["ENACW16", "MW", "NEADWL"]):
     """Plot ternary diagram showing average mixing percentages."""
     fig, ax = plt.subplots(figsize=(6, 6))
 
@@ -321,18 +356,18 @@ def plotar_ternary(percentagens, nomes=["ENACW16", "MW", "NEADWL"]):
 
     # Labels at vertices
     offset = 0.08
-    ax.text(vertices[0, 0], vertices[0, 1] - offset, nomes[0],
+    ax.text(vertices[0, 0], vertices[0, 1] - offset, names[0],
             ha='center', va='top', fontsize=12, fontweight='bold',
-            color=MA_ESTILO[nomes[0]]['cor'])
-    ax.text(vertices[1, 0], vertices[1, 1] - offset, nomes[1],
+            color=WATER_MASS_STYLES[names[0]]['cor'])
+    ax.text(vertices[1, 0], vertices[1, 1] - offset, names[1],
             ha='center', va='top', fontsize=12, fontweight='bold',
-            color=MA_ESTILO[nomes[1]]['cor'])
-    ax.text(vertices[2, 0], vertices[2, 1] + offset, nomes[2],
+            color=WATER_MASS_STYLES[names[1]]['cor'])
+    ax.text(vertices[2, 0], vertices[2, 1] + offset, names[2],
             ha='center', va='bottom', fontsize=12, fontweight='bold',
-            color=MA_ESTILO[nomes[2]]['cor'])
+            color=WATER_MASS_STYLES[names[2]]['cor'])
 
     # Convert percentages (m1, m2, m3) to Cartesian coordinates
-    m1, m2, m3 = percentagens
+    m1, m2, m3 = percentages
     x = m2 * vertices[1, 0] + m3 * vertices[2, 0]
     y = m3 * vertices[2, 1]
 
@@ -360,12 +395,12 @@ def plotar_ternary(percentagens, nomes=["ENACW16", "MW", "NEADWL"]):
         ax.plot(x_line, y_line, 'gray', linewidth=0.5, alpha=0.5)
 
     # Text with percentages
-    textstr = f'{nomes[0]}: {m1*100:.1f}%\n'
-    textstr += f'{nomes[1]}: {m2*100:.1f}%\n'
-    textstr += f'{nomes[2]}: {m3*100:.1f}%'
+    info_text = f'{names[0]}: {m1*100:.1f}%\n'
+    info_text += f'{names[1]}: {m2*100:.1f}%\n'
+    info_text += f'{names[2]}: {m3*100:.1f}%'
 
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.9, edgecolor='black', linewidth=1.5)
-    ax.text(0.98, 0.5, textstr, transform=ax.transAxes, fontsize=11,
+    ax.text(0.98, 0.5, info_text, transform=ax.transAxes, fontsize=11,
             verticalalignment='bottom', horizontalalignment='right',
             bbox=props, family='monospace', fontweight='bold')
 
@@ -380,7 +415,7 @@ def plotar_ternary(percentagens, nomes=["ENACW16", "MW", "NEADWL"]):
     return fig
 
 
-def plotar_TS_mistura_RGB(T, S, P, grupo):
+def plot_ts_rgb_mixing(T, S, P, water_masses):
     """
     Plot T-S diagram where CTD points are colored by RGB mixing
     of three water masses (ENACW16, MW, NEADWL).
@@ -404,40 +439,40 @@ def plotar_TS_mistura_RGB(T, S, P, grupo):
     ax.clabel(CS, inline=True, fontsize=8, fmt="%.1f")
 
     # Check if triangle exists
-    if all(n in grupo for n in ["ENACW16", "MW", "NEADWL"]):
+    if all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
         # Get coordinates and RGB colors of vertices
-        T1, S1 = grupo["ENACW16"]['temp'][0], grupo["ENACW16"]['sal'][0]
-        T2, S2 = grupo["MW"]['temp'][0], grupo["MW"]['sal'][0]
-        T3, S3 = grupo["NEADWL"]['temp'][0], grupo["NEADWL"]['sal'][0]
+        T1, S1 = water_masses["ENACW16"]['temp'][0], water_masses["ENACW16"]['sal'][0]
+        T2, S2 = water_masses["MW"]['temp'][0], water_masses["MW"]['sal'][0]
+        T3, S3 = water_masses["NEADWL"]['temp'][0], water_masses["NEADWL"]['sal'][0]
 
-        rgb1 = np.array(MA_ESTILO["ENACW16"]['rgb'])  # Red
-        rgb2 = np.array(MA_ESTILO["MW"]['rgb'])       # Green
-        rgb3 = np.array(MA_ESTILO["NEADWL"]['rgb'])   # Blue
+        rgb1 = np.array(WATER_MASS_STYLES["ENACW16"]['rgb'])  # Red
+        rgb2 = np.array(WATER_MASS_STYLES["MW"]['rgb'])       # Green
+        rgb3 = np.array(WATER_MASS_STYLES["NEADWL"]['rgb'])   # Blue
 
         # Calculate RGB colors for each CTD point
-        cores_rgb = []
-        pontos_dentro = 0
-        percentagens_acum = np.zeros(3)
+        rgb_colors = []
+        points_inside = 0
+        percentages_acum = np.zeros(3)
 
         for i in range(len(T_valid)):
-            resultado = calcular_percentagens_mistura(
+            result = calculate_mixing_percentages(
                 T_valid[i], S_valid[i], T1, S1, T2, S2, T3, S3
             )
 
-            if resultado is not None:
-                pontos_dentro += 1
-                percentagens_acum += resultado
+            if result is not None:
+                points_inside += 1
+                percentages_acum += result
                 # RGB color = weighted mixture of vertex colors
-                cor_misturada = resultado[0] * rgb1 + resultado[1] * rgb2 + resultado[2] * rgb3
-                cores_rgb.append(cor_misturada)
+                mixed_color = result[0] * rgb1 + result[1] * rgb2 + result[2] * rgb3
+                rgb_colors.append(mixed_color)
             else:
                 # Points outside triangle = gray
-                cores_rgb.append([0.7, 0.7, 0.7])
+                rgb_colors.append([0.7, 0.7, 0.7])
 
-        cores_rgb = np.array(cores_rgb)
+        rgb_colors = np.array(rgb_colors)
 
         # Plot CTD points with mixed colors
-        ax.scatter(S_valid, T_valid, c=cores_rgb, s=20,
+        ax.scatter(S_valid, T_valid, c=rgb_colors, s=20,
                   alpha=0.8, edgecolors='black', linewidths=0.2)
 
         # Draw triangle
@@ -454,22 +489,22 @@ def plotar_TS_mistura_RGB(T, S, P, grupo):
                   edgecolors='black', linewidths=2, zorder=10, label='NEADWL (B)')
 
         # Information
-        if pontos_dentro > 0:
-            percentagens_med = percentagens_acum / pontos_dentro
-            textstr = f'RGB Water Mass Mixing\n'
-            textstr += f'\nPoints in triangle:\n{pontos_dentro}/{len(T_valid)} '
-            textstr += f'({100*pontos_dentro/len(T_valid):.1f}%)\n'
-            textstr += f'\nAverage mixing:\n'
-            textstr += f'ENACW16: {percentagens_med[0]*100:.1f}%\n'
-            textstr += f'MW: {percentagens_med[1]*100:.1f}%\n'
-            textstr += f'NEADWL: {percentagens_med[2]*100:.1f}%\n'
-            textstr += f'\nColor = m₁·R + m₂·G + m₃·B'
+        if points_inside > 0:
+            percentages_med = percentages_acum / points_inside
+            info_text = f'RGB Water Mass Mixing\n'
+            info_text += f'\nPoints in triangle:\n{points_inside}/{len(T_valid)} '
+            info_text += f'({100*points_inside/len(T_valid):.1f}%)\n'
+            info_text += f'\nAverage mixing:\n'
+            info_text += f'ENACW16: {percentages_med[0]*100:.1f}%\n'
+            info_text += f'MW: {percentages_med[1]*100:.1f}%\n'
+            info_text += f'NEADWL: {percentages_med[2]*100:.1f}%\n'
+            info_text += f'\nColor = m₁·R + m₂·G + m₃·B'
         else:
-            textstr = 'No points inside mixing triangle'
+            info_text = 'No points inside mixing triangle'
 
         props = dict(boxstyle='round', facecolor='white', alpha=0.9,
                     edgecolor='black', linewidth=1.5)
-        ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=9,
+        ax.text(0.02, 0.98, info_text, transform=ax.transAxes, fontsize=9,
                 verticalalignment='top', bbox=props, family='monospace')
 
     ax.set_xlabel('Salinity (PSU)', fontsize=11)
@@ -483,7 +518,7 @@ def plotar_TS_mistura_RGB(T, S, P, grupo):
     return fig
 
 
-def plotar_TS(T, S, P, grupo, triangulo=True):
+def plot_ts_diagram(T, S, P, water_masses, triangulo=True):
     """Plot T-S diagram with isopycnals and water masses."""
     # Filter valid data
     mask = (~np.isnan(T)) & (~np.isnan(S)) & (T > 0) & (S > 0)
@@ -509,59 +544,59 @@ def plotar_TS(T, S, P, grupo, triangulo=True):
     cbar = plt.colorbar(sc, label='Pressure (dbar)', pad=0.02, ax=ax)
 
     # Water masses
-    percentagens_medias = None
+    percentages_medias = None
 
-    for nome, dados in grupo.items():
-        estilo = MA_ESTILO.get(nome, {'cor': 'black', 'marker': 'o', 'size': 100})
-        ax.scatter(dados['sal'], dados['temp'],
-                   marker=estilo['marker'],
-                   color=estilo['cor'],
-                   s=estilo['size'],
+    for name, data in water_masses.items():
+        style = WATER_MASS_STYLES.get(name, {'cor': 'black', 'marker': 'o', 'size': 100})
+        ax.scatter(data['sal'], data['temp'],
+                   marker=style['marker'],
+                   color=style['cor'],
+                   s=style['size'],
                    edgecolors='black',
                    linewidths=1.5,
-                   label=nome,
+                   label=name,
                    zorder=10)
 
     # Mixing triangle (ENACW16 - MW - NEADWL)
-    if triangulo and all(n in grupo for n in ["ENACW16", "MW", "NEADWL"]):
+    if triangulo and all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
         pontos = ["ENACW16", "MW", "NEADWL"]
-        x = [grupo[p]['sal'][0] for p in pontos]
-        y = [grupo[p]['temp'][0] for p in pontos]
+        x = [water_masses[p]['sal'][0] for p in pontos]
+        y = [water_masses[p]['temp'][0] for p in pontos]
         x.append(x[0])  # Close triangle
         y.append(y[0])
         ax.plot(x, y, 'k--', linewidth=1.2, alpha=0.7, zorder=8)
 
         # Calculate mixing percentages
-        T1, S1 = grupo["ENACW16"]['temp'][0], grupo["ENACW16"]['sal'][0]
-        T2, S2 = grupo["MW"]['temp'][0], grupo["MW"]['sal'][0]
-        T3, S3 = grupo["NEADWL"]['temp'][0], grupo["NEADWL"]['sal'][0]
+        T1, S1 = water_masses["ENACW16"]['temp'][0], water_masses["ENACW16"]['sal'][0]
+        T2, S2 = water_masses["MW"]['temp'][0], water_masses["MW"]['sal'][0]
+        T3, S3 = water_masses["NEADWL"]['temp'][0], water_masses["NEADWL"]['sal'][0]
 
-        pontos_dentro = 0
-        percentagens_medias = np.zeros(3)
+        points_inside = 0
+        percentages_medias = np.zeros(3)
 
         for i in range(len(T_valid)):
-            resultado = calcular_percentagens_mistura(
+            result = calculate_mixing_percentages(
                 T_valid[i], S_valid[i], T1, S1, T2, S2, T3, S3
             )
 
-            if resultado is not None:
-                pontos_dentro += 1
-                percentagens_medias += resultado
+            if result is not None:
+                points_inside += 1
+                percentages_medias += result
 
         # Statistics
-        if pontos_dentro > 0:
-            percentagens_medias /= pontos_dentro
-            textstr = f'Mixing Analysis\n'
-            textstr += f'\nPoints in triangle:\n{pontos_dentro}/{len(T_valid)} '
-            textstr += f'({100*pontos_dentro/len(T_valid):.1f}%)\n'
-            textstr += f'\nAverage contributions:\n'
-            textstr += f'ENACW16: {percentagens_medias[0]*100:.1f}%\n'
-            textstr += f'MW: {percentagens_medias[1]*100:.1f}%\n'
-            textstr += f'NEADWL: {percentagens_medias[2]*100:.1f}%'
+        if points_inside > 0:
+            percentages_medias /= points_inside
+            info_text = f'Mixing Analysis\n'
+            info_text += f'\nPoints in triangle:\n{points_inside}/{len(T_valid)} '
+            info_text += f'({100*points_inside/len(T_valid):.1f}%)\n'
+            info_text += f'\nAverage contributions:\n'
+            info_text += f'ENACW16: {percentages_medias[0]*100:.1f}%\n'
+            info_text += f'MW: {percentages_medias[1]*100:.1f}%\n'
+            info_text += f'NEADWL: {percentages_medias[2]*100:.1f}%'
 
             props = dict(boxstyle='round', facecolor='white', alpha=0.9,
                         edgecolor='black', linewidth=1.5)
-            ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=9,
+            ax.text(0.02, 0.98, info_text, transform=ax.transAxes, fontsize=9,
                     verticalalignment='top', bbox=props, family='monospace')
 
     ax.set_xlabel('Salinity (PSU)', fontsize=11)
@@ -572,4 +607,4 @@ def plotar_TS(T, S, P, grupo, triangulo=True):
     ax.legend(loc='lower right', fontsize='small', ncol=2, framealpha=0.95)
     plt.tight_layout()
 
-    return fig, percentagens_medias
+    return fig, percentages_medias

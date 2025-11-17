@@ -13,22 +13,33 @@ The core analysis processes CTD profiles through the following workflow:
 1. **Data Processing:** Reads NetCDF files containing pressure, temperature, and salinity measurements from multiple CTD casts.
 2. **Interpolation:** Normalizes all profiles to a common depth grid (10-4000m) for cross-comparison.
 3. **Density Calculation:** Computes in-situ density using the TEOS-10 Gibbs SeaWater (GSW) international standard equation of state.
-4. **Water Mass Identification:** Plots observed T-S properties against characteristic end-member water masses.
-5. **OMP Mixing Analysis:** Solves a linear system to calculate mixing fractions for points within the ENACW16-MW-NEADWL triangle.
-6. **RGB Visualization:** Maps mixing ratios to color channels (Red=ENACW16, Green=MW, Blue=NEADWL) for intuitive interpretation.
-7. **Compositional Statistics:** Generates ternary diagrams showing average water mass contributions across the dataset.
+4. **Water Mass Identification:** Plots observed T-S properties against characteristic end-member water masses (configurable - supports any number of water masses).
+5. **OMP Mixing Analysis:** For three selected water masses, solves a linear system to calculate mixing fractions for points within the mixing triangle.
+6. **RGB Visualization (3-Component):** As a special case visualization, maps three water mass mixing ratios to color channels for intuitive interpretation.
+7. **Compositional Statistics:** Generates ternary diagrams showing average water mass contributions for three-component analysis.
+
+**Note:** While this example focuses on three North Atlantic water masses (ENACW16, MW, NEADWL), the analysis supports **any number of water masses**. The RGB mixing visualization is specifically designed for three-component systems, but the standard T-S diagram can display unlimited water masses.
 
 ## Results
 
 ### Water Mass Mixing Analysis
 
-The analysis quantifies the contribution of three primary North Atlantic water masses:
+The default configuration includes three primary North Atlantic water masses for demonstration:
 
 | Water Mass | Type | Characteristic T-S |
 | :--- | :--- | :---: |
 | **ENACW16** | Eastern North Atlantic Central Water | 16.0°C, 36.15 PSU |
 | **MW** | Mediterranean Water | 13.0°C, 36.50 PSU |
 | **NEADWL** | North East Atlantic Deep Water Lower | 3.0°C, 34.95 PSU |
+
+**Additional water masses available** (see `Pontos_MA.txt`):
+- ENACW12, SAIW1, SAIW2 (Sub-Arctic Intermediate Water)
+- SPMW7, SPMW8, IrSPMW (Sub-Polar Mode Waters)
+- LSW (Labrador Sea Water)
+- ISOW, DSOW (Overflow Waters)
+- NEADWU (North East Atlantic Deep Water Upper)
+
+Users can define custom water masses for other ocean basins (Pacific, Indian, Southern Ocean) or focus on different three-component systems for RGB analysis.
 
 For each CTD observation point, the OMP method solves:
 - m₁·T₁ + m₂·T₂ + m₃·T₃ = T_observed
@@ -66,7 +77,11 @@ Oceanographic-Water-Mass-Analysis-in-Python/
 ├── Pontos_MA.txt                            # Water mass definitions
 ├── Oceanography Water Mass Evaluation.ipynb  # Jupyter analysis notebook
 ├── DEPLOYMENT.md                            # Deployment guide
-└── images/
+├── data/                                     # Example CTD data
+│   ├── example_profile_001.nc
+│   ├── example_profile_002.nc
+│   └── README_DATA.md                       # Data documentation
+└── images/                                   # Example outputs
     ├── Loc Perfis CTD.png
     ├── Vert Section Temp.png
     ├── Diagram TS Isocpicnas Mistura RGB.png
@@ -118,7 +133,9 @@ This analysis has practical applications in:
    streamlit run app.py
    ```
    
-   Open your browser to `http://localhost:8501` and upload NetCDF files via the sidebar.
+   Open your browser to `http://localhost:8501`. Click **"📊 Load Example Analysis"** for instant results with included sample data, or upload your own NetCDF files.
+
+**💡 Tip:** Select your application focus (Offshore Energy, Fisheries, Climate Services, etc.) to see business-relevant interpretations tailored to your field.
 
 ### Option 2: Jupyter Notebook
 
@@ -134,18 +151,18 @@ This analysis has practical applications in:
 ### Option 3: Python Module
 
 ```python
-from oceanography import ler_perfis, calcular_densidade, plotar_TS
+from oceanography import read_profiles, calculate_density, plot_ts_diagram
 import numpy as np
 
 # Define depth grid
 Znew = np.linspace(10, 4000, 400)
 
 # Process CTD files
-la, lo, Ti, Te, Se = ler_perfis(ncf_files, Znew)
-Rho = calcular_densidade(Te, Se, Znew, lo, la)
+la, lo, Ti, Te, Se = read_profiles(ncf_files, Znew)
+Rho = calculate_density(Te, Se, Znew, lo, la)
 
 # Generate T-S diagram with mixing analysis
-fig, mixing_percentages = plotar_TS(T, S, P, water_masses)
+fig, mixing_percentages = plot_ts_diagram(T, S, P, water_masses)
 ```
 
 ## Data Format
@@ -158,7 +175,24 @@ NetCDF files should contain the following variables:
 - `Temperature`: In situ temperature (°C)
 - `Salinity`: Practical Salinity (PSU)
 
-Example data source: [World Ocean Database](https://www.ncei.noaa.gov/products/world-ocean-database)
+**Example data source:** [World Ocean Database](https://www.ncei.noaa.gov/products/world-ocean-database)
+
+### Sample Data Included
+
+This repository includes example CTD profiles from the North Atlantic for testing and demonstration:
+
+```
+data/
+├── example_profile_001.nc    # Single CTD cast
+├── example_profile_002.nc    # Additional profiles
+└── README_DATA.md            # Data source and metadata
+```
+
+These files can be used to:
+- Test the application functionality
+- Learn the expected NetCDF format
+- Explore water mass mixing in the North Atlantic
+- Verify installation and dependencies
 
 ## Scientific Background
 
