@@ -354,50 +354,55 @@ def main():
                 
                 with col2:
                     st.markdown("**Typical Project Value:**")
-                    st.markdown("• Cable routing optimization: **$8-15M savings** (per 1000km)")
+                    st.markdown("• Cable routing optimization: **\\$8-15M savings** (per 1000km)")
                     st.markdown("• Extended equipment lifespan: **+3-5 years**")
                     st.markdown("• Reduced maintenance frequency: **-15-25%**")
-                    st.markdown("• Avoided emergency repairs: **$2-5M each**")
+                    st.markdown("• Avoided emergency repairs: **\\$2-5M each**")
                 
-                st.info("**ROI Example:** For a 5,000 km transatlantic cable project ($400M total), water mass analysis ($25K) can save $40-75M through optimal routing. **ROI: 1,600-3,000x**")
+                st.info("**ROI Example:** For a 5,000 km transatlantic cable project (\\$400M total), water mass analysis (\\$25K) can save \\$40-75M through optimal routing. **ROI: 1,600-3,000x**")
 
         # Generate visualizations
         st.markdown('<h2 class="section-header">Analysis Results</h2>', unsafe_allow_html=True)
         
         # Quick Insights Panel (Enhancement #3)
         st.markdown("### Quick Insights")
-        col1, col2, col3, col4 = st.columns(4)
         
-        with col1:
-            # Temperature range
-            temp_range = f"{np.nanmin(Te):.1f}°C to {np.nanmax(Te):.1f}°C"
-            st.metric("Temperature Range", temp_range)
-        
-        with col2:
-            # Salinity range
-            sal_range = f"{np.nanmin(Se):.2f} to {np.nanmax(Se):.2f}"
-            st.metric("Salinity Range", sal_range)
-        
-        with col3:
-            # Depth coverage
-            depth_cov = f"0 - {Znew[-1]:.0f}m"
-            st.metric("Depth Coverage", depth_cov)
-        
-        with col4:
-            # Number of profiles
-            st.metric("CTD Profiles", len(ncf))
-        
-        # Add water mass dominance insight if we have the data
-        if len(water_masses) == 3 and all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
-            # Calculate quick water mass statistics
-            T_flat = Te.flatten()
-            S_flat = Se.flatten()
-            P_flat = np.repeat(Znew, Te.shape[0]).reshape(Te.shape).flatten()
+        try:
+            col1, col2, col3, col4 = st.columns(4)
             
-            mask = (~np.isnan(T_flat)) & (~np.isnan(S_flat))
-            if np.sum(mask) > 0:
-                # This is a quick calculation - full one is in histograms
-                st.info(f"**Water Mass Signature:** Analysis covers {np.sum(mask)} measurements across {len(ncf)} profiles. Detailed distribution histograms available below.")
+            with col1:
+                # Temperature range
+                temp_range = f"{np.nanmin(Te):.1f}°C to {np.nanmax(Te):.1f}°C"
+                st.metric("Temperature Range", temp_range)
+            
+            with col2:
+                # Salinity range
+                sal_range = f"{np.nanmin(Se):.2f} to {np.nanmax(Se):.2f}"
+                st.metric("Salinity Range", sal_range)
+            
+            with col3:
+                # Depth coverage
+                depth_cov = f"0 - {Znew[-1]:.0f}m"
+                st.metric("Depth Coverage", depth_cov)
+            
+            with col4:
+                # Number of profiles
+                st.metric("CTD Profiles", len(ncf))
+            
+            # Add water mass dominance insight if we have the data
+            if len(water_masses) == 3 and all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
+                # Calculate quick water mass statistics
+                T_flat = Te.flatten()
+                S_flat = Se.flatten()
+                
+                mask = (~np.isnan(T_flat)) & (~np.isnan(S_flat))
+                if np.sum(mask) > 0:
+                    # This is a quick calculation - full one is in histograms
+                    st.info(f"**Water Mass Signature:** Analysis covers {np.sum(mask)} measurements across {len(ncf)} profiles. Detailed distribution histograms available below.")
+        except Exception as e:
+            st.error(f"Error generating Quick Insights: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
 
         # Temperature profiles
         if show_profiles:
