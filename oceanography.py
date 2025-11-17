@@ -418,7 +418,7 @@ def plot_ternary(percentages, names=["ENACW16", "MW", "NEADWL"]):
 def plot_ts_rgb_mixing(T, S, P, water_masses):
     """
     Plot T-S diagram where CTD points are colored by RGB mixing
-    of three water masses (ENACW16, MW, NEADWL).
+    of three water masses. Works with any 3 water masses.
     """
     # Filter valid data
     mask = (~np.isnan(T)) & (~np.isnan(S)) & (T > 0) & (S > 0)
@@ -438,11 +438,33 @@ def plot_ts_rgb_mixing(T, S, P, water_masses):
                     linewidths=0.8, alpha=0.6)
     ax.clabel(CS, inline=True, fontsize=8, fmt="%.1f")
 
-    # Check if triangle exists
-    if all(n in water_masses for n in ["ENACW16", "MW", "NEADWL"]):
-        # Get coordinates and RGB colors of vertices
-        T1, S1 = water_masses["ENACW16"]['temp'][0], water_masses["ENACW16"]['sal'][0]
-        T2, S2 = water_masses["MW"]['temp'][0], water_masses["MW"]['sal'][0]
+    # Check if we have exactly 3 water masses for RGB mixing
+    if len(water_masses) == 3:
+        # Get the three water masses (in whatever order they are)
+        wm_names = list(water_masses.keys())
+        wm1_name, wm2_name, wm3_name = wm_names[0], wm_names[1], wm_names[2]
+        
+        # Get coordinates
+        T1, S1 = water_masses[wm1_name]['temp'][0], water_masses[wm1_name]['sal'][0]
+        T2, S2 = water_masses[wm2_name]['temp'][0], water_masses[wm2_name]['sal'][0]
+        T3, S3 = water_masses[wm3_name]['temp'][0], water_masses[wm3_name]['sal'][0]
+        
+        # Assign RGB colors (Red, Green, Blue)
+        # Check if we have the standard ones, otherwise use generic assignment
+        if wm1_name in WATER_MASS_STYLES and 'rgb' in WATER_MASS_STYLES[wm1_name]:
+            rgb1 = WATER_MASS_STYLES[wm1_name]['rgb']
+        else:
+            rgb1 = (1.0, 0.0, 0.0)  # Red for first water mass
+        
+        if wm2_name in WATER_MASS_STYLES and 'rgb' in WATER_MASS_STYLES[wm2_name]:
+            rgb2 = WATER_MASS_STYLES[wm2_name]['rgb']
+        else:
+            rgb2 = (0.0, 1.0, 0.0)  # Green for second water mass
+        
+        if wm3_name in WATER_MASS_STYLES and 'rgb' in WATER_MASS_STYLES[wm3_name]:
+            rgb3 = WATER_MASS_STYLES[wm3_name]['rgb']
+        else:
+            rgb3 = (0.0, 0.0, 1.0)  # Blue for third water mass
         T3, S3 = water_masses["NEADWL"]['temp'][0], water_masses["NEADWL"]['sal'][0]
 
         rgb1 = np.array(WATER_MASS_STYLES["ENACW16"]['rgb'])  # Red
@@ -482,11 +504,11 @@ def plot_ts_rgb_mixing(T, S, P, water_masses):
 
         # Plot vertices with their pure RGB colors
         ax.scatter([S1], [T1], marker='o', s=200, color=rgb1,
-                  edgecolors='black', linewidths=2, zorder=10, label='ENACW16 (R)')
+                  edgecolors='black', linewidths=2, zorder=10, label=f'{wm1_name} (R)')
         ax.scatter([S2], [T2], marker='s', s=200, color=rgb2,
-                  edgecolors='black', linewidths=2, zorder=10, label='MW (G)')
+                  edgecolors='black', linewidths=2, zorder=10, label=f'{wm2_name} (G)')
         ax.scatter([S3], [T3], marker='X', s=250, color=rgb3,
-                  edgecolors='black', linewidths=2, zorder=10, label='NEADWL (B)')
+                  edgecolors='black', linewidths=2, zorder=10, label=f'{wm3_name} (B)')
 
         # Information
         if points_inside > 0:
@@ -495,9 +517,9 @@ def plot_ts_rgb_mixing(T, S, P, water_masses):
             info_text += f'\nPoints in triangle:\n{points_inside}/{len(T_valid)} '
             info_text += f'({100*points_inside/len(T_valid):.1f}%)\n'
             info_text += f'\nAverage mixing:\n'
-            info_text += f'ENACW16: {percentages_med[0]*100:.1f}%\n'
-            info_text += f'MW: {percentages_med[1]*100:.1f}%\n'
-            info_text += f'NEADWL: {percentages_med[2]*100:.1f}%\n'
+            info_text += f'{wm1_name}: {percentages_med[0]*100:.1f}%\n'
+            info_text += f'{wm2_name}: {percentages_med[1]*100:.1f}%\n'
+            info_text += f'{wm3_name}: {percentages_med[2]*100:.1f}%\n'
             info_text += f'\nColor = m₁·R + m₂·G + m₃·B'
         else:
             info_text = 'No points inside mixing triangle'

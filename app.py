@@ -11,6 +11,7 @@ import gsw
 from netCDF4 import Dataset
 import tempfile
 import os
+from datetime import datetime
 from oceanography import (
     Znew, WATER_MASS_STYLES, read_profiles, calculate_density, parse_water_masses_text,
     plot_profiles, plot_map, plot_section, plot_ternary,
@@ -89,6 +90,219 @@ BUSINESS_CONTEXT = {
 
 
 def default_water_masses_text():
+    """Return default North Atlantic water masses configuration."""
+    return """ENACW16 16.0 36.142
+MW 11.74 36.482
+NEADWL 2.96 34.966"""
+
+
+def auto_detect_water_masses(ncf):
+    """
+    Auto-detect potential water masses from CTD data by finding
+    T-S extrema and characteristic points.
+    
+    Returns list of (name, temp, sal) tuples
+    """
+    try:
+        all_temps = []
+        all_sals = []
+        
+        # Read all data
+        for file_path in ncf:
+            nc = Dataset(file_path, 'r')
+            T = nc.variables['Temperature'][:]
+            S = nc.variables['Salinity'][:]
+            nc.close()
+            
+            # Filter valid data
+            mask = (~np.isnan(T)) & (~np.isnan(S))
+            all_temps.extend(T[mask])
+            all_sals.extend(S[mask])
+        
+        if len(all_temps) == 0:
+            return None
+        
+        all_temps = np.array(all_temps)
+        all_sals = np.array(all_sals)
+        
+        # Find characteristic water masses
+        water_masses = []
+        
+        # 1. Warmest, most saline (typically surface/central water)
+        idx_warm = np.argmax(all_temps)
+        water_masses.append(("WarmSurface", float(all_temps[idx_warm]), float(all_sals[idx_warm])))
+        
+        # 2. Intermediate (median values)
+        t_median = np.median(all_temps)
+        s_median = np.median(all_sals)
+        # Find closest point to median
+        dist = (all_temps - t_median)**2 + (all_sals - s_median)**2
+        idx_med = np.argmin(dist)
+        water_masses.append(("Intermediate", float(all_temps[idx_med]), float(all_sals[idx_med])))
+        
+        # 3. Coldest, least saline (typically deep water)
+        idx_cold = np.argmin(all_temps)
+        water_masses.append(("ColdDeep", float(all_temps[idx_cold]), float(all_sals[idx_cold])))
+        
+        return water_masses
+        
+    except Exception as e:
+        return None
+
+
+def generate_analysis_report(ncf, Te, Se, Znew, water_masses, stats=None, use_case="Scientific Research"):
+    """
+    Generate a text-based analysis report for download.
+    
+    Args:
+        ncf: list of NetCDF file paths
+        Te: Temperature array
+        Se: Salinity array
+        Znew: Depth array
+        water_masses: dict of water masses
+        stats: dict of water mass statistics (optional)
+        use_case: selected use case
+    
+    Returns:
+        str: Formatted report text
+    """
+    from datetime import datetime
+    
+    report = []
+    report.append("=" * 70)
+    report.append("OCEANOGRAPHIC WATER MASS ANALYSIS REPORT")
+    report.append("=" * 70)
+    report.append(f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report.append(f"Analysis Type: {use_case}")
+    report.append("\n" + "=" * 70)
+    report.append("DATA SUMMARY")
+    report.append("=" * 70)
+    report.append(f"Number of CTD Profiles: {len(ncf)}")
+    report.append(f"Depth Range: {Znew[0]:.0f} - {Znew[-1]:.0f} m")
+    report.append(f"Depth Levels: {len(Znew)}")
+    report.append(f"Temperature Range: {np.nanmin(Te):.2f}°C to {np.nanmax(Te):.2f}°C")
+    report.append(f"Salinity Range: {np.nanmin(Se):.3f} to {np.nanmax(Se):.3f} PSU")
+    
+    report.append("\n" + "=" * 70)
+    report.append("WATER MASSES ANALYZED")
+    report.append("=" * 70)
+    for name, data in water_masses.items():
+        report.append(f"{name}:")
+        report.append(f"  Temperature: {data['temp'][0]:.2f}°C")
+        report.append(f"  Salinity: {data['sal'][0]:.3f} PSU")
+    
+    if stats:
+        report.append("\n" + "=" * 70)
+        report.append("WATER MASS CONTRIBUTION STATISTICS")
+        report.append("=" * 70)
+        
+        # Check for negative values (indicates water masses not in data)
+        has_negatives = any(wm_stats['min'] < 0 or wm_stats['mean'] < 0 
+                           for wm_stats in stats.values())
+        
+        if has_negatives:
+            report.append("\nNOTE: Negative contributions indicate water mass end-members")
+            report.append("defined outside the actual data range. These water masses are")
+            report.append("not present in your dataset. Consider using auto-detect or")
+            report.append("adjusting water mass definitions to match your data.")
+        
+        for wm_name, wm_stats in stats.items():
+            report.append(f"\n{wm_name}:")
+            report.append(f"  Mean Contribution: {wm_stats['mean']:.1f}%")
+            report.append(f"  Median: {wm_stats['median']:.1f}%")
+            report.append(f"  Std Deviation: {wm_stats['std']:.1f}%")
+            report.append(f"  Range: {wm_stats['min']:.1f}% - {wm_stats['max']:.1f}%")
+            report.append(f"  Measurements: {wm_stats['n']}")
+        
+        # Dominant water mass
+        dominant = max(stats.items(), key=lambda x: x[1]['mean'])
+        report.append(f"\nDominant Water Mass: {dominant[0]} ({dominant[1]['mean']:.1f}% average)")
+    
+    report.append("\n" + "=" * 70)
+    report.append("KEY FINDINGS")
+    report.append("=" * 70)
+    
+    if stats:
+        # Always add dominant water mass finding
+        dominant = max(stats.items(), key=lambda x: x[1]['mean'])
+        report.append(f"• Dominant water mass: {dominant[0]} ({dominant[1]['mean']:.1f}% average contribution)")
+        
+        if use_case == "Offshore Energy & Infrastructure":
+            mw_mean = stats.get('MW', {}).get('mean', 0) if 'MW' in stats else 0
+            if mw_mean > 30:
+                report.append(f"• High MW presence ({mw_mean:.1f}%) indicates elevated corrosion risk")
+                report.append("  at 1000-1500m depth. Consider cable routing above 800m or below 1600m.")
+            elif mw_mean > 10:
+                report.append(f"• Moderate MW contribution ({mw_mean:.1f}%). Standard corrosion")
+                report.append("  protection sufficient for most depths.")
+            else:
+                report.append(f"• Low MW presence ({mw_mean:.1f}%). Minimal Mediterranean influence.")
+            report.append("• Plan infrastructure depths based on dominant water mass characteristics.")
+        
+        elif use_case == "Fisheries & Aquaculture":
+            enacw_mean = stats.get('ENACW16', {}).get('mean', 0) if 'ENACW16' in stats else 0
+            mw_mean = stats.get('MW', {}).get('mean', 0) if 'MW' in stats else 0
+            
+            findings_added = False
+            if enacw_mean > 40:
+                report.append(f"• Strong ENACW presence ({enacw_mean:.1f}%) indicates productive")
+                report.append("  habitat for juvenile fish in upper waters.")
+                findings_added = True
+            if mw_mean > 20:
+                report.append(f"• MW contribution ({mw_mean:.1f}%) suggests adult tuna/swordfish")
+                report.append("  habitat at 500-1200m depth range.")
+                findings_added = True
+            
+            # Fallback if no specific conditions met
+            if not findings_added:
+                report.append(f"• Water mass distribution: ENACW {enacw_mean:.1f}%, MW {mw_mean:.1f}%")
+                report.append(f"• Focus fishing effort on water mass boundaries and frontal zones")
+                if dominant[1]['mean'] > 60:
+                    report.append(f"• Strong {dominant[0]} dominance - target this water mass characteristics")
+        
+        elif use_case == "Climate Services":
+            mw_mean = stats.get('MW', {}).get('mean', 0) if 'MW' in stats else 0
+            report.append(f"• Current MW contribution: {mw_mean:.1f}%")
+            report.append("• Historical baseline for North Atlantic: ~35%")
+            if abs(mw_mean - 35) > 5:
+                report.append("• Deviation from baseline may indicate circulation changes.")
+            else:
+                report.append("• Within normal range of historical variability.")
+        
+        elif use_case == "Environmental Consulting":
+            report.append(f"• Current water mass distribution documented for baseline assessment")
+            report.append(f"• Temperature range: {np.nanmin(Te):.2f}-{np.nanmax(Te):.2f}°C")
+            report.append(f"• Salinity range: {np.nanmin(Se):.3f}-{np.nanmax(Se):.3f} PSU")
+            report.append(f"• Use this baseline for monitoring changes over time")
+        
+        else:  # Scientific Research or fallback
+            report.append(f"• Analysis covers {stats[list(stats.keys())[0]]['n']} measurements")
+            report.append(f"• Temperature range: {np.nanmin(Te):.2f}-{np.nanmax(Te):.2f}°C")
+            report.append(f"• Salinity range: {np.nanmin(Se):.3f}-{np.nanmax(Se):.3f} PSU")
+            report.append(f"• Water mass mixing follows OMP conservation principles")
+    else:
+        # No stats available
+        report.append("• Analysis completed successfully")
+        report.append(f"• Temperature range: {np.nanmin(Te):.2f}-{np.nanmax(Te):.2f}°C")
+        report.append(f"• Salinity range: {np.nanmin(Se):.3f}-{np.nanmax(Se):.3f} PSU")
+    
+    report.append("\n" + "=" * 70)
+    report.append("ANALYSIS METHODS")
+    report.append("=" * 70)
+    report.append("• Optimum Multiparameter (OMP) method for water mass mixing analysis")
+    report.append("• TEOS-10 (GSW) equation of state for density calculations")
+    report.append("• Linear interpolation to standard depth grid")
+    report.append("• RGB color mixing visualization for 3-component systems")
+    
+    report.append("\n" + "=" * 70)
+    report.append("Generated by Oceanographic Water Mass Analysis Platform")
+    report.append("Python | Streamlit | NumPy | Matplotlib | GSW | Cartopy")
+    report.append("=" * 70)
+    
+    return "\n".join(report)
+
+
+def default_water_masses_text():
     """Return default water mass definitions for North Atlantic."""
     return """# Water Mass Definitions (Name Temperature Salinity)
 # Format: NAME TEMP(°C) SALINITY(PSU)
@@ -158,12 +372,57 @@ def main():
 
         st.info("**Tip:** Define any number of water masses. RGB mixing analysis works specifically with 3 selected masses (ENACW16, MW, NEADWL), but standard T-S diagrams can display all defined water masses.")
 
-        use_default = st.checkbox("Use default North Atlantic water masses", value=True)
+        # Detection options
+        config_mode = st.radio(
+            "Configuration mode:",
+            ["Use default (North Atlantic)", "Auto-detect from data", "Manual entry"],
+            help="Choose how to define water masses"
+        )
 
-        if use_default:
+        if config_mode == "Use default (North Atlantic)":
             water_mass_text = default_water_masses_text()
-            st.info("Using 3-water-mass example: ENACW16, MW, NEADWL for RGB analysis")
-        else:
+            st.success("Using ENACW16, MW, NEADWL for North Atlantic")
+        
+        elif config_mode == "Auto-detect from data":
+            # Need to have files loaded first
+            if uploaded_files or st.session_state.get('use_example_data', False):
+                # Get file list
+                if st.session_state.get('use_example_data', False):
+                    import glob
+                    example_files = sorted(glob.glob(os.path.join('data', 'example_profile_*.nc')))
+                    detected = auto_detect_water_masses(example_files)
+                elif uploaded_files:
+                    # Save files temporarily for detection
+                    temp_files = []
+                    temp_dir = tempfile.mkdtemp()
+                    for uploaded_file in uploaded_files:
+                        temp_path = os.path.join(temp_dir, uploaded_file.name)
+                        with open(temp_path, 'wb') as f:
+                            f.write(uploaded_file.getbuffer())
+                        temp_files.append(temp_path)
+                    detected = auto_detect_water_masses(temp_files)
+                    # Cleanup
+                    for f in temp_files:
+                        try:
+                            os.remove(f)
+                        except:
+                            pass
+                else:
+                    detected = None
+                
+                if detected:
+                    # Format as text
+                    water_mass_text = "\n".join([f"{name} {temp:.2f} {sal:.3f}" for name, temp, sal in detected])
+                    st.success(f"Auto-detected {len(detected)} water masses from your data")
+                    st.code(water_mass_text)
+                else:
+                    st.warning("Could not auto-detect water masses. Using defaults.")
+                    water_mass_text = default_water_masses_text()
+            else:
+                st.warning("Load data first to enable auto-detection")
+                water_mass_text = default_water_masses_text()
+        
+        else:  # Manual entry
             water_mass_text = st.text_area(
                 "Define water masses (Name Temp Sal):",
                 value=default_water_masses_text(),
@@ -181,6 +440,26 @@ def main():
         show_ts_diagram = st.checkbox("T-S diagram", value=True)
         show_ts_rgb = st.checkbox("RGB mixing visualization", value=True)
         show_ternary = st.checkbox("Ternary composition diagram", value=True)
+        
+        st.markdown("---")
+        
+        # Depth Range Selector (Enhancement #5)
+        st.header("Depth Focus")
+        enable_depth_filter = st.checkbox("Focus on specific depth range", value=False)
+        
+        if enable_depth_filter:
+            depth_range = st.slider(
+                "Select depth range (m):",
+                min_value=0,
+                max_value=5000,
+                value=(0, 5000),
+                step=100,
+                help="Filter analysis to focus on specific depth range"
+            )
+            st.session_state['depth_range'] = depth_range
+            st.info(f"Analysis focused on {depth_range[0]}-{depth_range[1]}m depth")
+        else:
+            st.session_state['depth_range'] = None
 
     # Main content area
     if not uploaded_files and not st.session_state.get('use_example_data', False):
@@ -296,6 +575,31 @@ def main():
         # Calculate in-situ density using TEOS-10
         with st.spinner("Calculating in-situ density using GSW (TEOS-10)..."):
             Rho = calculate_density(Te, Se, Znew, lo, la)
+        
+        # Apply depth range filter if enabled (Enhancement #5)
+        depth_range = st.session_state.get('depth_range', None)
+        Znew_working = Znew  # Use imported Znew as starting point
+        Te_working = Te
+        Se_working = Se
+        Rho_working = Rho
+        
+        if depth_range:
+            depth_min, depth_max = depth_range
+            depth_mask = (Znew_working >= depth_min) & (Znew_working <= depth_max)
+            
+            # Filter depth-dependent arrays
+            Znew_working = Znew_working[depth_mask]
+            Te_working = Te_working[:, depth_mask]
+            Se_working = Se_working[:, depth_mask]
+            Rho_working = Rho_working[:, depth_mask]
+            
+            st.success(f"Data filtered to {depth_min}-{depth_max}m depth range ({len(Znew_working)} depth levels)")
+        
+        # Use working variables for rest of analysis
+        Znew_analysis = Znew_working
+        Te_analysis = Te_working
+        Se_analysis = Se_working
+        Rho_analysis = Rho_working
 
         # Calculate accumulated distance along track
         if len(lo) > 1:
@@ -305,7 +609,7 @@ def main():
         else:
             # Single profile case
             sd = np.array([0.0])
-        X, Y = np.meshgrid(sd, Znew, indexing='ij')
+        X, Y = np.meshgrid(sd, Znew_analysis, indexing='ij')
 
         # Parse water mass definitions
         water_masses = parse_water_masses_text(water_mass_text)
@@ -322,10 +626,10 @@ def main():
             st.metric("CTD Profiles", len(ncf))
 
         with col2:
-            st.metric("Depth Levels", len(Znew))
+            st.metric("Depth Levels", len(Znew_analysis))
 
         with col3:
-            st.metric("Maximum Depth", f"{Znew[-1]:.0f} m")
+            st.metric("Maximum Depth", f"{Znew_analysis[-1]:.0f} m")
 
         with col4:
             st.metric("Water Masses", len(water_masses))
@@ -372,17 +676,17 @@ def main():
             
             with col1:
                 # Temperature range
-                temp_range = f"{np.nanmin(Te):.1f}°C to {np.nanmax(Te):.1f}°C"
+                temp_range = f"{np.nanmin(Te_analysis):.1f}°C to {np.nanmax(Te_analysis):.1f}°C"
                 st.metric("Temperature Range", temp_range)
             
             with col2:
                 # Salinity range
-                sal_range = f"{np.nanmin(Se):.2f} to {np.nanmax(Se):.2f}"
+                sal_range = f"{np.nanmin(Se_analysis):.2f} to {np.nanmax(Se_analysis):.2f}"
                 st.metric("Salinity Range", sal_range)
             
             with col3:
                 # Depth coverage
-                depth_cov = f"0 - {Znew[-1]:.0f}m"
+                depth_cov = f"0 - {Znew_analysis[-1]:.0f}m"
                 st.metric("Depth Coverage", depth_cov)
             
             with col4:
@@ -408,7 +712,7 @@ def main():
         if show_profiles:
             st.markdown("### Temperature Profiles by Depth")
             with st.spinner("Generating temperature profiles..."):
-                fig = plot_profiles(Te, Znew)
+                fig = plot_profiles(Te_analysis, Znew_analysis)
                 st.pyplot(fig)
 
         # Geographic map
@@ -435,17 +739,17 @@ def main():
 
             with tab1:
                 with st.spinner("Generating temperature section..."):
-                    fig = plot_section(X, Y, Te, "Vertical Section - Temperature", "Temperature (°C)")
+                    fig = plot_section(X, Y, Te_analysis, "Vertical Section - Temperature", "Temperature (°C)")
                     st.pyplot(fig)
 
             with tab2:
                 with st.spinner("Generating salinity section..."):
-                    fig = plot_section(X, Y, Se, "Vertical Section - Salinity", "Salinity (PSU)")
+                    fig = plot_section(X, Y, Se_analysis, "Vertical Section - Salinity", "Salinity (PSU)")
                     st.pyplot(fig)
 
             with tab3:
                 with st.spinner("Generating density section..."):
-                    fig = plot_section(X, Y, Rho, "Vertical Section - Density", "Density (kg/m³)")
+                    fig = plot_section(X, Y, Rho_analysis, "Vertical Section - Density", "Density (kg/m³)")
                     st.pyplot(fig)
 
         # T-S Diagram Analysis
@@ -483,7 +787,13 @@ def main():
 
             if show_ts_rgb:
                 st.markdown("#### RGB Water Mass Mixing Visualization")
-                st.info("Color channels represent proportional mixing: Red = ENACW16, Green = MW, Blue = NEADWL")
+                # Dynamic message based on water masses
+                if len(water_masses) == 3:
+                    wm_names = list(water_masses.keys())
+                    st.info(f"Color channels represent proportional mixing: Red = {wm_names[0]}, Green = {wm_names[1]}, Blue = {wm_names[2]}")
+                else:
+                    st.warning("RGB mixing requires exactly 3 water masses. Configure 3 water masses to enable this visualization.")
+                
                 with st.spinner("Generating RGB mixing diagram..."):
                     fig = plot_ts_rgb_mixing(T_perfil, S_perfil, P_perfil, water_masses)
                     st.pyplot(fig)
@@ -531,6 +841,29 @@ def main():
                             
                             elif use_case == "Climate Services":
                                 st.info(f"📊 Current MW contribution: {stats['MW']['mean']:.1f}%. Historical baseline for this region is ~35%. Values >40% indicate enhanced Mediterranean outflow; <30% suggests reduced exchange, potentially signaling circulation changes.")
+                    
+                    # Store stats in session state for export
+                    st.session_state['analysis_stats'] = stats
+        
+        # Export Report Feature (Enhancement #4)
+        st.markdown("---")
+        st.markdown("### 📄 Export Analysis")
+        
+        # Generate report
+        report_stats = st.session_state.get('analysis_stats', None)
+        use_case = st.session_state.get('use_case', 'Scientific Research')
+        report_text = generate_analysis_report(ncf, Te_analysis, Se_analysis, Znew_analysis, water_masses, report_stats, use_case)
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info("Download a comprehensive text summary of this analysis for sharing with stakeholders or documentation purposes.")
+        with col2:
+            st.download_button(
+                label="Download Report",
+                data=report_text.encode('utf-8'),
+                file_name=f"water_mass_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain; charset=utf-8"
+            )
 
         # Footer
         st.markdown("---")
